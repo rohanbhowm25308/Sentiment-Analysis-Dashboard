@@ -1,16 +1,16 @@
 from flask import Flask, render_template, request, jsonify
-from transformers import pipeline
+import joblib
 
 app = Flask(__name__)
 
-# Load the AI model only once
-classifier = pipeline("sentiment-analysis",model="distilbert-base-uncased-finetuned-sst-2-english")
+model = joblib.load("sentiment_model.pkl")
+vectorizer = joblib.load("tfidf_vectorizer.pkl")
+
 
 
 @app.route("/")
 def home():
     return render_template("index.html")
-
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -21,26 +21,22 @@ def predict():
 
     if not text:
         return jsonify({
-            "sentiment": "NEUTRAL",
-            "confidence": 0.0
+            "sentiment": "Neutral",
+            "confidence": 0
         })
 
-    result = classifier(text)
-    
-    print(result)
-    
-    label = result[0]["label"]
-    score = result[0]["score"]
+    text_vector = vectorizer.transform([text])
 
-    # Optional: Treat low-confidence predictions as Neutral
-    if score < 0.85:
-        label = "NEUTRAL"
+    prediction = model.predict(text_vector)[0]
+
+    probabilities = model.predict_proba(text_vector)[0]
+
+    confidence = round(max(probabilities) * 100, 2)
 
     return jsonify({
-        "sentiment": label,
-        "confidence": score
+        "sentiment": prediction.capitalize(),
+        "confidence": confidence
     })
-
 
 if __name__ == "__main__":
     app.run(debug=True)
